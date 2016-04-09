@@ -787,6 +787,9 @@ diff_match_patch.prototype.diff_cleanupSemantic = function(diffs) {
   }
   this.diff_cleanupSemanticLossless(diffs);
 
+  //Modified by Nick Hough
+  this.diff_cleanupMergeModified(diffs);
+
   // Find any overlaps between deletions and insertions.
   // e.g: <del>abcxxx</del><ins>xxxdef</ins>
   //   -> <del>abc</del>xxx<ins>def</ins>
@@ -794,6 +797,11 @@ diff_match_patch.prototype.diff_cleanupSemantic = function(diffs) {
   //   -> <ins>def</ins>xxx<del>abc</del>
   // Only extract an overlap if it is as big as the edit ahead or behind it.
   pointer = 1;
+
+  //Nick Hough - Hack so the loop never returns
+    pointer = diffs.length;
+  //End Hack
+
   while (pointer < diffs.length) {
     if (diffs[pointer - 1][0] == DIFF_DELETE &&
         diffs[pointer][0] == DIFF_INSERT) {
@@ -956,8 +964,67 @@ diff_match_patch.prototype.diff_cleanupSemanticLossless = function(diffs) {
         }
       }
     }
+
+    //START Added by Nick Hough
+    if (diffs[pointer - 1][0] == DIFF_EQUAL){
+      var i = 0;
+      for(i = diffs[pointer - 1][1].length - 1; i >= 0; i--){
+        var currentChar = diffs[pointer - 1][1].charAt(i);
+        if(!/[a-zA-Z0-9-_]/.test(currentChar) || !/[a-zA-Z0-9-_]/.test(diffs[pointer][1].charAt(0))){
+          break;
+        }
+      }
+      if(i < diffs[pointer - 1][1].length - 1){
+        var newPrevDiffText = diffs[pointer - 1][1].substring(0, i+1);
+        var insertDeleteText = diffs[pointer - 1][1].substring(i+1);
+
+        //Set equal text to be shorter
+        diffs[pointer - 1][1] = newPrevDiffText;
+
+        //Add mirroring insert and delete operations for the rest
+        var myObject = [DIFF_INSERT, insertDeleteText];
+        diffs.splice(pointer, 0, myObject);
+
+        myObject = [DIFF_DELETE, insertDeleteText];
+        diffs.splice(pointer, 0, myObject);
+
+      }else{
+        //Already on good boundary, so stay
+      }
+
+      if(diffs[pointer + 1][0] == DIFF_EQUAL){
+        var i = 0;
+        for(i = 0; i < diffs[pointer + 1][1].length; i++){
+          var currentChar = diffs[pointer + 1][1].charAt(i);
+          if(!/[a-zA-Z0-9-_]/.test(currentChar) || !/[a-zA-Z0-9-_]/.test(diffs[pointer][1].charAt(diffs[pointer][0].length - 1))){
+            break;
+          }
+        }
+
+        if(i > 0){
+          var newPrevDiffText = diffs[pointer + 1][1].substring(i);
+          var insertDeleteText = diffs[pointer + 1][1].substring(0, i);
+
+          //Set equal text to be shorter
+          diffs[pointer + 1][1] = newPrevDiffText;
+
+          //Add mirroring insert and delete operations for the rest
+          var myObject = [DIFF_INSERT, insertDeleteText];
+          diffs.splice(pointer + 1, 0, myObject);
+
+          myObject = [DIFF_DELETE, insertDeleteText];
+          diffs.splice(pointer + 1, 0, myObject);
+
+        }else{
+          //Already on good boundary, so stay
+        }
+      }
+    }
     pointer++;
   }
+
+
+  //End added by Nick Hough
 };
 
 // Define some regex patterns for matching boundaries.
@@ -1171,6 +1238,67 @@ diff_match_patch.prototype.diff_cleanupMerge = function(diffs) {
   // If shifts were made, the diff needs reordering and another shift sweep.
   if (changes) {
     this.diff_cleanupMerge(diffs);
+  }
+};
+
+/**
+ * Reorder and merge like edit sections.  Merge equalities.
+ * Any edit section can move as long as it doesn't cross an equality.
+ * @param {!Array.<!diff_match_patch.Diff>} diffs Array of diff tuples.
+ */
+diff_match_patch.prototype.diff_cleanupMergeModified = function(diffs) {
+  diffs.push([DIFF_EQUAL, '']);  // Add a dummy entry at the end.
+  var pointer = 0;
+  var count_delete = 0;
+  var count_insert = 0;
+  var text_delete = '';
+  var text_insert = '';
+  var commonlength;
+  while (pointer < diffs.length) {
+    switch (diffs[pointer][0]) {
+      case DIFF_INSERT:
+        count_insert++;
+        text_insert += diffs[pointer][1];
+        pointer++;
+        break;
+      case DIFF_DELETE:
+        count_delete++;
+        text_delete += diffs[pointer][1];
+        pointer++;
+        break;
+      case DIFF_EQUAL:
+        // Upon reaching an equality, check for prior redundancies.
+        if (count_delete + count_insert > 1) {
+          // Delete the offending records and add the merged ones.
+          if (count_delete === 0) {
+            diffs.splice(pointer - count_insert,
+                count_delete + count_insert, [DIFF_INSERT, text_insert]);
+          } else if (count_insert === 0) {
+            diffs.splice(pointer - count_delete,
+                count_delete + count_insert, [DIFF_DELETE, text_delete]);
+          } else {
+            diffs.splice(pointer - count_delete - count_insert,
+                count_delete + count_insert, [DIFF_DELETE, text_delete],
+                [DIFF_INSERT, text_insert]);
+          }
+          pointer = pointer - count_delete - count_insert +
+                    (count_delete ? 1 : 0) + (count_insert ? 1 : 0) + 1;
+        } else if (pointer !== 0 && diffs[pointer - 1][0] == DIFF_EQUAL) {
+          // Merge this equality with the previous one.
+          diffs[pointer - 1][1] += diffs[pointer][1];
+          diffs.splice(pointer, 1);
+        } else {
+          pointer++;
+        }
+        count_insert = 0;
+        count_delete = 0;
+        text_delete = '';
+        text_insert = '';
+        break;
+    }
+  }
+  if (diffs[diffs.length - 1][1] === '') {
+    diffs.pop();  // Remove the dummy entry at the end.
   }
 };
 
