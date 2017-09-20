@@ -1,4 +1,4 @@
-#google-diff-match-patch unofficial mirror
+# google-diff-match-patch unofficial mirror
 
 This is an unofficial mirror of the JavaScript version of the google-diff-match-patch library. The code included is unmodified.
 
@@ -8,7 +8,8 @@ To install the library please use [bower](https://github.com/bower/bower) or sim
 
     bower install google-diff-match-patch-js
 
-##Diff, Match and Patch Library
+## Diff, Match and Patch Library
+
 http://code.google.com/p/google-diff-match-patch/
 Neil Fraser
 

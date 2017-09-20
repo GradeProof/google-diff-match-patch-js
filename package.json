@@ -1,0 +1,13 @@
+{
+  "name": "google-diff-match-patch-js",
+  "version": "1.0.0",
+  "description": "This is an unofficial mirror of the JavaScript version of the google-diff-match-patch library",
+  "main": "diff_match_patch.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GradeProof/google-diff-match-patch-js.git"
+  }
+}
